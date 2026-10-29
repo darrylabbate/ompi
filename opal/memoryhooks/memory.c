@@ -152,7 +152,8 @@ int opal_mem_hooks_register_release(opal_mem_hooks_callback_fn_t *func, void *cb
     callback_list_item_t *cbitem, *new_cbitem;
     int ret = OPAL_SUCCESS;
 
-    if (0 == ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT) & hooks_support)) {
+    if (0 == ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT | OPAL_MEMORY_SUBSCRIBE_SUPPORT)
+              & hooks_support)) {
         return OPAL_ERR_NOT_SUPPORTED;
     }
 

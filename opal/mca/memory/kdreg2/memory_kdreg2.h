@@ -16,6 +16,7 @@
 #    include "opal_config.h"
 
 #    include <pthread.h>
+#    include <sys/types.h>
 
 #    if defined(HAVE_KDREG2_H)
 #        include <kdreg2.h>
@@ -36,6 +37,7 @@ typedef struct opal_memory_kdreg2_component_t {
     const struct kdreg2_status_data *status_data;
     opal_hash_table_t regions;
     opal_mutex_t lock;
+    pid_t pid;
 } opal_memory_kdreg2_component_t;
 
 extern opal_memory_kdreg2_component_t mca_memory_kdreg2_component;

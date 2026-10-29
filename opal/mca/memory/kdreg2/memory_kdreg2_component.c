@@ -141,7 +141,7 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
     struct kdreg2_monitoring_params *params;
     int rc = OPAL_SUCCESS;
 
-    if (c->fd < 0 || 0 == len) {
+    if (c->fd < 0 || 0 == len || getpid() != c->pid) {
         return OPAL_ERR_NOT_AVAILABLE;
     }
 
@@ -196,7 +196,7 @@ static bool kdreg2_valid(void *base, size_t len, uint64_t cookie)
     bool valid = false;
 
     OPAL_THREAD_LOCK(&c->lock);
-    if (NULL != c->status_data
+    if (NULL != c->status_data && getpid() == c->pid
         && OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
         valid = !kdreg2_mapping_changed(c->status_data, params);
     }
@@ -318,6 +318,7 @@ static int kdreg2_open(void)
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
+    c->pid = getpid();
     opal_mem_hooks_set_support(OPAL_MEMORY_SUBSCRIBE_SUPPORT);
 
     opal_output_verbose(10, opal_memory_base_framework.framework_output,
