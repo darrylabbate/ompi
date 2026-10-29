@@ -104,6 +104,7 @@ static int opal_memory_base_open(mca_base_open_flag_t flags)
             mca_base_component_unload(item->cli_component,
                                       opal_memory_base_framework.framework_output);
             opal_list_remove_item(&opal_memory_base_framework.framework_components, &item->super);
+            OBJ_RELEASE(item);
         }
     }
 
@@ -111,6 +112,10 @@ static int opal_memory_base_open(mca_base_open_flag_t flags)
     ret = mca_base_framework_components_open(&opal_memory_base_framework, flags);
     if (ret != OPAL_SUCCESS) {
         return ret;
+    }
+
+    if (opal_list_is_empty(&opal_memory_base_framework.framework_components)) {
+        opal_memory = &empty_component;
     }
 
     /* All done */

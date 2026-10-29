@@ -26,6 +26,7 @@
 #include "opal/mca/memory/base/base.h"
 #include "opal/mca/memory/base/empty.h"
 #include "opal/memoryhooks/memory_internal.h"
+#include "opal/util/fd.h"
 #include "opal/util/output.h"
 
 static int kdreg2_open(void);
@@ -211,7 +212,8 @@ static int kdreg2_open(void)
         return rc;
     }
 
-    if (0 != pipe2(c->exit_pipe, O_CLOEXEC)) {
+    if (0 != pipe(c->exit_pipe) || OPAL_SUCCESS != opal_fd_set_cloexec(c->exit_pipe[0])
+        || OPAL_SUCCESS != opal_fd_set_cloexec(c->exit_pipe[1])) {
         kdreg2_cleanup();
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
