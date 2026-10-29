@@ -33,6 +33,9 @@ static int kdreg2_open(void);
 static int kdreg2_close(void);
 static int kdreg2_register(void);
 static int kdreg2_query(int *priority);
+static int kdreg2_monitor(void *base, size_t len, uint64_t cookie);
+static int kdreg2_unmonitor(void *base, size_t len, uint64_t cookie);
+static bool kdreg2_valid(void *base, size_t len, uint64_t cookie);
 
 static int mca_memory_kdreg2_priority;
 static int mca_memory_kdreg2_max_regions;
@@ -55,9 +58,10 @@ opal_memory_kdreg2_component_t mca_memory_kdreg2_component = {
             .memoryc_data = {MCA_BASE_METADATA_PARAM_CHECKPOINT},
 
             .memoryc_query = kdreg2_query,
-            .memoryc_register = opal_memory_base_component_register_empty,
-            .memoryc_deregister = opal_memory_base_component_deregister_empty,
+            .memoryc_register = kdreg2_monitor,
+            .memoryc_deregister = kdreg2_unmonitor,
             .memoryc_set_alignment = opal_memory_base_component_set_alignment_empty,
+            .memoryc_valid = kdreg2_valid,
         },
     .fd = -1,
     .exit_pipe = {-1, -1},
@@ -66,7 +70,7 @@ MCA_BASE_COMPONENT_INIT(opal, memory, kdreg2)
 
 static int kdreg2_register(void)
 {
-    mca_memory_kdreg2_priority = 10;
+    mca_memory_kdreg2_priority = 90;
     mca_base_component_var_register(&mca_memory_kdreg2_component.super.memoryc_version, "priority",
                                     "Priority of the kdreg2 memory hook component",
                                     MCA_BASE_VAR_TYPE_INT, NULL, 0, 0, OPAL_INFO_LVL_5,
@@ -130,6 +134,77 @@ static int kdreg2_query(int *priority)
     return OPAL_SUCCESS;
 }
 
+static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
+{
+    opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
+    struct kdreg2_ioctl_monitor arg = {.addr = base, .length = len, .cookie = cookie};
+    struct kdreg2_monitoring_params *params;
+    int rc = OPAL_SUCCESS;
+
+    if (c->fd < 0 || 0 == len) {
+        return OPAL_ERR_NOT_AVAILABLE;
+    }
+
+    params = malloc(sizeof(*params));
+    if (NULL == params) {
+        return OPAL_ERR_OUT_OF_RESOURCE;
+    }
+
+    OPAL_THREAD_LOCK(&c->lock);
+    if (0 != ioctl(c->fd, KDREG2_IOCTL_MONITOR, &arg)) {
+        rc = OPAL_ERROR;
+    } else {
+        *params = arg.monitoring_params;
+        rc = opal_hash_table_set_value_uint64(&c->regions, cookie, params);
+        if (OPAL_SUCCESS != rc) {
+            struct kdreg2_ioctl_unmonitor unarg = {.cookie = cookie,
+                                                   .monitoring_params = arg.monitoring_params};
+            (void) ioctl(c->fd, KDREG2_IOCTL_UNMONITOR, &unarg);
+        }
+    }
+    OPAL_THREAD_UNLOCK(&c->lock);
+
+    if (OPAL_SUCCESS != rc) {
+        free(params);
+    }
+    return rc;
+}
+
+static int kdreg2_unmonitor(void *base, size_t len, uint64_t cookie)
+{
+    opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
+    struct kdreg2_monitoring_params *params = NULL;
+
+    OPAL_THREAD_LOCK(&c->lock);
+    if (OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
+        struct kdreg2_ioctl_unmonitor arg = {.cookie = cookie, .monitoring_params = *params};
+        if (c->fd >= 0) {
+            (void) ioctl(c->fd, KDREG2_IOCTL_UNMONITOR, &arg);
+        }
+        opal_hash_table_remove_value_uint64(&c->regions, cookie);
+    }
+    OPAL_THREAD_UNLOCK(&c->lock);
+
+    free(params);
+    return OPAL_SUCCESS;
+}
+
+static bool kdreg2_valid(void *base, size_t len, uint64_t cookie)
+{
+    opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
+    struct kdreg2_monitoring_params *params = NULL;
+    bool valid = false;
+
+    OPAL_THREAD_LOCK(&c->lock);
+    if (NULL != c->status_data
+        && OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
+        valid = !kdreg2_mapping_changed(c->status_data, params);
+    }
+    OPAL_THREAD_UNLOCK(&c->lock);
+
+    return valid;
+}
+
 static int kdreg2_read_events(int fd)
 {
     struct kdreg2_event event;
@@ -184,6 +259,17 @@ static void *kdreg2_evictor(void *arg)
 static void kdreg2_cleanup(void)
 {
     opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
+    uint64_t key;
+    void *value, *node = NULL;
+
+    if (OPAL_SUCCESS == opal_hash_table_get_first_key_uint64(&c->regions, &key, &value, &node)) {
+        do {
+            free(value);
+        } while (OPAL_SUCCESS
+                 == opal_hash_table_get_next_key_uint64(&c->regions, &key, &value, node, &node));
+    }
+    OBJ_DESTRUCT(&c->regions);
+    OBJ_DESTRUCT(&c->lock);
 
     if (c->fd >= 0) {
         close(c->fd);
@@ -207,8 +293,17 @@ static int kdreg2_open(void)
         return OPAL_SUCCESS;
     }
 
+    OBJ_CONSTRUCT(&c->lock, opal_mutex_t);
+    OBJ_CONSTRUCT(&c->regions, opal_hash_table_t);
+    if (OPAL_SUCCESS != opal_hash_table_init(&c->regions, 1024)) {
+        OBJ_DESTRUCT(&c->regions);
+        OBJ_DESTRUCT(&c->lock);
+        return OPAL_ERR_OUT_OF_RESOURCE;
+    }
+
     rc = kdreg2_device_open(&c->fd, &c->status_data);
     if (OPAL_SUCCESS != rc) {
+        kdreg2_cleanup();
         return rc;
     }
 
@@ -222,6 +317,8 @@ static int kdreg2_open(void)
         kdreg2_cleanup();
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
+
+    opal_mem_hooks_set_support(OPAL_MEMORY_SUBSCRIBE_SUPPORT);
 
     opal_output_verbose(10, opal_memory_base_framework.framework_output,
                         "memory:kdreg2: monitor started");

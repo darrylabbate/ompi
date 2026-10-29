@@ -34,6 +34,8 @@ BEGIN_C_DECLS
  */
 void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_alloc);
 
+extern int mca_rcache_base_mem_cb_async;
+
 END_C_DECLS
 
 #endif /* MCA_RCACHE_BASE_MEM_CB_H */

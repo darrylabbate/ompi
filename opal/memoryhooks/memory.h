@@ -83,6 +83,12 @@ OPAL_DECLSPEC int opal_mem_hooks_init(void);
  *                                    process is giving memory back to the
  *                                    operating system, not at ever call
  *                                    to realloc/free/etc.
+ * @retval OPAL_MEMORY_SUBSCRIBE_SUPPORT Memory hooks subsystem only
+ *                                    triggers callback events for regions
+ *                                    passed to memoryc_register, possibly
+ *                                    after the change has happened.  Users
+ *                                    must check memoryc_valid before reusing
+ *                                    a registration.
  *
  * \note This function must be called after opal_mem_hooks_init().
  */

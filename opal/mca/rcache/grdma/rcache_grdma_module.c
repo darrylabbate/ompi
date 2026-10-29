@@ -43,6 +43,7 @@
 #include "opal/mca/rcache/base/base.h"
 #include "opal/mca/rcache/rcache.h"
 #include "opal/mca/accelerator/accelerator.h"
+#include "opal/mca/memory/memory.h"
 #include "opal/align.h"
 #include "opal/util/sys_limits.h"
 #include "rcache_grdma.h"
@@ -290,6 +291,13 @@ static int mca_rcache_grdma_check_cached(mca_rcache_base_registration_t *grdma_r
         /* The allocation this registration was created for has been freed and
          * the address range reused, i.e. an alloc/free/alloc sequence. Retire
          * the registration and let the caller fall through to the slow path. */
+        return mca_rcache_grdma_add_to_gc(grdma_reg);
+    }
+
+    if (NULL != opal_memory->memoryc_valid
+        && !opal_memory->memoryc_valid(grdma_reg->base,
+                                       (size_t) (grdma_reg->bound - grdma_reg->base + 1),
+                                       (uint64_t) (uintptr_t) grdma_reg)) {
         return mca_rcache_grdma_add_to_gc(grdma_reg);
     }
 

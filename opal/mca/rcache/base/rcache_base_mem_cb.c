@@ -49,6 +49,8 @@ static char msg[512];
  *  from_alloc==true, then you cannot call malloc (or any of its
  *  friends)!
  */
+int mca_rcache_base_mem_cb_async;
+
 void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_alloc)
 {
     mca_rcache_base_selected_module_t *current;
@@ -64,7 +66,7 @@ void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_all
         if (current->rcache_module->rcache_invalidate_range != NULL) {
             rc = current->rcache_module->rcache_invalidate_range(current->rcache_module, base,
                                                                  size);
-            if (rc != OPAL_SUCCESS) {
+            if (rc != OPAL_SUCCESS && &mca_rcache_base_mem_cb_async != cbdata) {
                 if (from_alloc) {
                     int len;
                     len = snprintf(
