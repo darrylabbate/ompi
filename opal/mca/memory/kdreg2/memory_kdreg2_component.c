@@ -150,7 +150,7 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
-    OPAL_THREAD_LOCK(&c->lock);
+    pthread_rwlock_wrlock(&c->lock);
     if (0 != ioctl(c->fd, KDREG2_IOCTL_MONITOR, &arg)) {
         rc = OPAL_ERROR;
     } else {
@@ -162,7 +162,7 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
             (void) ioctl(c->fd, KDREG2_IOCTL_UNMONITOR, &unarg);
         }
     }
-    OPAL_THREAD_UNLOCK(&c->lock);
+    pthread_rwlock_unlock(&c->lock);
 
     if (OPAL_SUCCESS != rc) {
         free(params);
@@ -175,7 +175,7 @@ static int kdreg2_unmonitor(void *base, size_t len, uint64_t cookie)
     opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
     struct kdreg2_monitoring_params *params = NULL;
 
-    OPAL_THREAD_LOCK(&c->lock);
+    pthread_rwlock_wrlock(&c->lock);
     if (OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
         struct kdreg2_ioctl_unmonitor arg = {.cookie = cookie, .monitoring_params = *params};
         if (c->fd >= 0) {
@@ -183,7 +183,7 @@ static int kdreg2_unmonitor(void *base, size_t len, uint64_t cookie)
         }
         opal_hash_table_remove_value_uint64(&c->regions, cookie);
     }
-    OPAL_THREAD_UNLOCK(&c->lock);
+    pthread_rwlock_unlock(&c->lock);
 
     free(params);
     return OPAL_SUCCESS;
@@ -195,12 +195,12 @@ static bool kdreg2_valid(void *base, size_t len, uint64_t cookie)
     struct kdreg2_monitoring_params *params = NULL;
     bool valid = false;
 
-    OPAL_THREAD_LOCK(&c->lock);
+    pthread_rwlock_rdlock(&c->lock);
     if (NULL != c->status_data && getpid() == c->pid
         && OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
         valid = !kdreg2_mapping_changed(c->status_data, params);
     }
-    OPAL_THREAD_UNLOCK(&c->lock);
+    pthread_rwlock_unlock(&c->lock);
 
     return valid;
 }
@@ -269,7 +269,7 @@ static void kdreg2_cleanup(void)
                  == opal_hash_table_get_next_key_uint64(&c->regions, &key, &value, node, &node));
     }
     OBJ_DESTRUCT(&c->regions);
-    OBJ_DESTRUCT(&c->lock);
+    pthread_rwlock_destroy(&c->lock);
 
     if (c->fd >= 0) {
         close(c->fd);
@@ -293,11 +293,11 @@ static int kdreg2_open(void)
         return OPAL_SUCCESS;
     }
 
-    OBJ_CONSTRUCT(&c->lock, opal_mutex_t);
+    pthread_rwlock_init(&c->lock, NULL);
     OBJ_CONSTRUCT(&c->regions, opal_hash_table_t);
     if (OPAL_SUCCESS != opal_hash_table_init(&c->regions, 1024)) {
         OBJ_DESTRUCT(&c->regions);
-        OBJ_DESTRUCT(&c->lock);
+        pthread_rwlock_destroy(&c->lock);
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
 

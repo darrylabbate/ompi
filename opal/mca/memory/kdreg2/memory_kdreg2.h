@@ -26,7 +26,6 @@
 
 #    include "opal/class/opal_hash_table.h"
 #    include "opal/mca/memory/memory.h"
-#    include "opal/mca/threads/mutex.h"
 
 typedef struct opal_memory_kdreg2_component_t {
     opal_memory_base_component_2_0_0_t super;
@@ -36,7 +35,7 @@ typedef struct opal_memory_kdreg2_component_t {
     pthread_t thread;
     const struct kdreg2_status_data *status_data;
     opal_hash_table_t regions;
-    opal_mutex_t lock;
+    pthread_rwlock_t lock;
     pid_t pid;
 } opal_memory_kdreg2_component_t;
 
