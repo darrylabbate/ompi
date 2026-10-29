@@ -139,6 +139,8 @@ static inline int dereg_mem(mca_rcache_base_registration_t *reg)
     reg->ref_count = 0;
 
     if (!(reg->flags & MCA_RCACHE_FLAGS_CACHE_BYPASS)) {
+        opal_memory->memoryc_deregister(reg->base, (size_t) (reg->bound - reg->base + 1),
+                                        (uint64_t) (uintptr_t) reg);
         mca_rcache_base_vma_delete(rcache_grdma->cache->vma_module, reg);
     }
 
@@ -462,6 +464,9 @@ static int mca_rcache_grdma_register(mca_rcache_base_module_t *rcache, void *add
             opal_free_list_return_mt(&rcache_grdma->reg_list, item);
             return rc;
         }
+        opal_memory->memoryc_register(grdma_reg->base,
+                                      (size_t) (grdma_reg->bound - grdma_reg->base + 1),
+                                      (uint64_t) (uintptr_t) grdma_reg);
     }
 
     OPAL_OUTPUT_VERBOSE((MCA_BASE_VERBOSE_TRACE, opal_rcache_base_framework.framework_output,

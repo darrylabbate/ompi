@@ -29,6 +29,9 @@ AC_DEFUN([MCA_opal_memory_kdreg2_CONFIG],[
     opal_memory_kdreg2_happy=no
     opal_memory_kdreg2_CPPFLAGS=
 
+    AS_IF([test -n "$with_memory_manager" && test "$with_memory_manager" != "yes" && test "$with_memory_manager" != "kdreg2"],
+          [with_kdreg2=no])
+
     AS_IF([test "$with_kdreg2" != "no"], [
         opal_memory_kdreg2_save_CPPFLAGS=$CPPFLAGS
         AS_IF([test -n "$with_kdreg2" && test "$with_kdreg2" != "yes"],
