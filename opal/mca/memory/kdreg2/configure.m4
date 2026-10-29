@@ -45,6 +45,8 @@ AC_DEFUN([MCA_opal_memory_kdreg2_CONFIG],[
 
     AS_IF([test "$opal_memory_kdreg2_happy" = "no" && test -n "$with_kdreg2" && test "$with_kdreg2" != "no"],
           [AC_MSG_ERROR([kdreg2 support requested but kdreg2.h was not found])])
+    AS_IF([test "$opal_memory_kdreg2_happy" = "no" && test "$with_memory_manager" = "kdreg2"],
+          [AC_MSG_ERROR([--with-memory-manager=kdreg2 requested but kdreg2.h was not found])])
 
     AC_SUBST([memory_kdreg2_CPPFLAGS], [$opal_memory_kdreg2_CPPFLAGS])
 
