@@ -19,8 +19,8 @@ dnl $HEADER$
 dnl SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 dnl
 
-dnl we only want one :)
-m4_define(MCA_opal_memory_CONFIGURE_MODE, STOP_AT_FIRST)
+dnl build every component that can be built; selection happens at run time
+m4_define(MCA_opal_memory_CONFIGURE_MODE, PRIORITY)
 
 AC_DEFUN([MCA_opal_memory_CONFIG],[
         AC_ARG_WITH([memory-manager],
