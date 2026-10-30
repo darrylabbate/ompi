@@ -15,6 +15,7 @@
  *                         reserved.
  * Copyright (c) 2016      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -38,25 +39,23 @@
       have complete implementations for memoryc_process,
       memoryc_register, and memoryc_deregister.
 
-   There will only be one of these components compiled in to Open MPI
-   (it will be compiled in libopen-pal; it will never be a DSO).  so
-   the componente will rule "yes, I can run" or "no, I cannot run".
-   If it elects not to run, then there is no memory manager support in
-   this process.
+   Every component that can be built is compiled in to Open MPI (in
+   libopen-pal; never as a DSO).  At run time, the base opens the
+   components in priority order and uses the first one that opens.
+   If none of them opens, there is no memory manager support in this
+   process.
 
-   Because there will only be one memory manager component in the
-   process, there is no need for a separate module structure --
-   everything is in the component for simplicity.
+   Because only one memory manager component is used in the process,
+   there is no need for a separate module structure -- everything is
+   in the component for simplicity.
 
-   Note that there is an interface relevant to this framework that is
-   not described in this file: the opal_memory_changed() macro.  This
-   macro should return 1 if an asynchronous agent has noticed that
-   memory mappings have changed.  The macro should be as cheap/fast as
-   possible (which is why it's a macro).  If it returns 1, the
-   memoryc_process() function pointer (below), will be invoked.  If
-   the component does not provide this macro, then a default macro is
-   used that always returns 0 and therefore memoryc_process() will
-   never be invoked (and can legally be NULL).
+   rcache calls memoryc_process() (through opal_memory_base_process())
+   before it looks up or inserts cached registrations.  A component of
+   the second kind reports the changes it has seen from there, on the
+   calling thread, through opal_mem_hooks_release_hook().  Such a
+   component may learn about a change some time after it happened, so
+   it also provides memoryc_valid(), which rcache calls before it
+   reuses a registration.
 */
 
 #ifndef OPAL_MCA_MEMORY_MEMORY_H
@@ -70,12 +69,11 @@
 BEGIN_C_DECLS
 
 /**
- * Prototype for doing something once memory changes have been
- * detected.  This function is assumed to do whatever is necessary to
- * a) figured out what has changed, and b) adjust OMPI as relevant
- * (e.g., call opal_mem_hooks_release_hook).  It only needs to be
- * supplied for components that provide opal_memory_changed() macros
- * that can return non-zero.
+ * Prototype for reporting changes to the memory mappings of the
+ * regions passed to memoryc_register.  This function is assumed to do
+ * whatever is necessary to a) figure out what has changed, and b)
+ * adjust OMPI as relevant (e.g., call opal_mem_hooks_release_hook).
+ * It is called often, so it must be cheap when nothing changed.
  */
 typedef int (*opal_memory_base_component_process_fn_t)(void);
 
@@ -115,6 +113,14 @@ typedef int (*opal_memory_base_component_register_fn_t)(void *base, size_t len, 
 typedef int (*opal_memory_base_component_deregister_fn_t)(void *base, size_t len, uint64_t cookie);
 
 /**
+ * Prototype for a function that checks whether the memory mapping of
+ * a region passed to memoryc_register is unchanged since then.  The
+ * parameters match the ones passed to memoryc_register.  Returns
+ * false if the mapping changed or the component cannot tell.
+ */
+typedef bool (*opal_memory_base_component_valid_fn_t)(void *base, size_t len, uint64_t cookie);
+
+/**
  * Prototype for a function that set the memory alignment
  */
 typedef void (*opal_memory_base_component_set_alignment_fn_t)(int use_memalign,
@@ -140,10 +146,8 @@ typedef struct opal_memory_base_component_2_0_0_t {
      * initialized. It may be NULL if no hooks are needed. */
     opal_memory_base_component_init_hook_fn_t memoryc_init_hook;
 
-    /** Function to call when something has changed, as indicated by
-        opal_memory_changed().  Will be ignored if the component does
-        not provide an opal_memory_changed() macro that returns
-        nonzero.  */
+    /** Function to call to report changes to the regions passed to
+        memoryc_register.  May be NULL. */
     opal_memory_base_component_process_fn_t memoryc_process;
 
     /** Function invoked when Open MPI starts "caring" about a
@@ -154,6 +158,11 @@ typedef struct opal_memory_base_component_2_0_0_t {
     opal_memory_base_component_deregister_fn_t memoryc_deregister;
     /** Function invoked in order to set malloc'ed memory alignment */
     opal_memory_base_component_set_alignment_fn_t memoryc_set_alignment;
+    /** Function invoked to check that a region passed to
+        memoryc_register has not changed.  May be NULL if the component
+        reports every change before it returns from the call that made
+        it. */
+    opal_memory_base_component_valid_fn_t memoryc_valid;
 } opal_memory_base_component_2_0_0_t;
 
 OPAL_DECLSPEC extern opal_memory_base_component_2_0_0_t *opal_memory;
