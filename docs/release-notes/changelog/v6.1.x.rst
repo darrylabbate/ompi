@@ -8,6 +8,14 @@ Open MPI version v6.1.0
 --------------------------
 :Date: ...fill me in...
 
+- New ``kdreg2`` memory component, built with ``--with-kdreg2[=DIR]``.
+  It uses the kdreg2 kernel module to tell Open MPI's registration
+  cache when cached memory is freed or remapped.  When the kdreg2
+  device can be used, ``kdreg2`` is selected ahead of ``patcher``;
+  otherwise ``patcher`` is used.  The ``memory`` framework now builds
+  every available component and tries them in priority order at run
+  time.
+
 - ``coll/ucc`` now creates a UCC context per family of communicators
   instead of one per process over ``MPI_COMM_WORLD``.  MPI Sessions
   programs that never create ``MPI_COMM_WORLD`` can use UCC, and a
