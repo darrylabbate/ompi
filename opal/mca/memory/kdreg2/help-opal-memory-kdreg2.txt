@@ -1,0 +1,48 @@
+# -*- text -*-
+#
+# Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+# This is the US/English help file for Open MPI's kdreg2 memory hooks.
+#
+[device error]
+WARNING: Open MPI found the kdreg2 device, but could not use it.  It
+will fall back to another memory hook component.
+
+  Local host: %s
+  Device:     %s
+  Operation:  %s
+  Error:      %s
+
+Check the device permissions and the kdreg2 kernel module with your
+system administrator.  To stop using kdreg2 and silence this warning,
+set the memory MCA variable to "^kdreg2".
+#
+[bad max regions]
+The memory_kdreg2_max_regions MCA variable must be greater than zero.
+
+  Local host: %s
+  Value:      %d
+#
+[too many regions]
+WARNING: kdreg2 is already watching as many memory regions as it was
+configured for, so Open MPI will not reuse any further memory
+registrations in this process.  This may lower performance.
+
+  Local host:                %s
+  memory_kdreg2_max_regions: %d
+
+Raise memory_kdreg2_max_regions to let Open MPI cache more
+registrations.
+#
+[read error]
+WARNING: Open MPI could not read memory change events from kdreg2, so
+it will stop reusing cached memory registrations in this process.
+This may lower performance.
+
+  Local host: %s
+  Error:      %s
