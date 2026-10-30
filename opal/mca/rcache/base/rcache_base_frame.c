@@ -98,7 +98,7 @@ static int mca_rcache_base_close(void)
     }
 
     /* deregister memory free callback */
-    if (mca_rcache_base_used_mem_hooks) {
+    if (1 == mca_rcache_base_used_mem_hooks) {
         opal_mem_hooks_unregister_release(mca_rcache_base_mem_cb);
 
         /* close the memory manager components.  Registered hooks can
