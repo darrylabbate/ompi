@@ -46,11 +46,6 @@
  */
 #include "opal/mca/memory/base/static-components.h"
 
-static int empty_process(void)
-{
-    return OPAL_SUCCESS;
-}
-
 static int empty_query(int *priority)
 {
     *priority = 0;
@@ -63,7 +58,6 @@ static int empty_query(int *priority)
 static opal_memory_base_component_2_0_0_t empty_component = {
     /* Empty / safe functions to call if no memory component is selected */
     .memoryc_query = empty_query,
-    .memoryc_process = empty_process,
     .memoryc_register = opal_memory_base_component_register_empty,
     .memoryc_deregister = opal_memory_base_component_deregister_empty,
     .memoryc_set_alignment = opal_memory_base_component_set_alignment_empty,

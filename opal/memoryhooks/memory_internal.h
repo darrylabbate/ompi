@@ -10,6 +10,7 @@
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
  * Copyright (c) 2007      Sun Microsystems, Inc. All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -30,6 +31,7 @@
 #define OPAL_MEMORY_FREE_SUPPORT   0x0001
 #define OPAL_MEMORY_MUNMAP_SUPPORT 0x0002
 #define OPAL_MEMORY_CHUNK_SUPPORT  0x0004
+#define OPAL_MEMORY_SUBSCRIBE_SUPPORT 0x0008
 
 BEGIN_C_DECLS
 

@@ -36,13 +36,4 @@ AC_DEFUN([MCA_opal_memory_CONFIG],[
 
         AC_DEFINE_UNQUOTED([OPAL_MEMORY_HAVE_COMPONENT], [$memory_base_found],
             [Whether any opal memory mca components were found])
-
-        # See if someone set to use their header file
-        if test "$memory_base_include" = "" ; then
-            memory_base_include="base/empty.h"
-        fi
-
-        AC_DEFINE_UNQUOTED([MCA_memory_IMPLEMENTATION_HEADER],
-                           ["opal/mca/memory/$memory_base_include"],
-                           [Header to include for parts of the memory implementation])
 ])
