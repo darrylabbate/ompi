@@ -15,6 +15,7 @@
  *                         reserved.
  * Copyright (c) 2016      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -38,15 +39,15 @@
       have complete implementations for memoryc_process,
       memoryc_register, and memoryc_deregister.
 
-   There will only be one of these components compiled in to Open MPI
-   (it will be compiled in libopen-pal; it will never be a DSO).  so
-   the componente will rule "yes, I can run" or "no, I cannot run".
-   If it elects not to run, then there is no memory manager support in
-   this process.
+   Every component that can be built is compiled in to Open MPI (in
+   libopen-pal; never as a DSO).  At run time, the base opens the
+   components in priority order and uses the first one that opens.
+   If none of them opens, there is no memory manager support in this
+   process.
 
-   Because there will only be one memory manager component in the
-   process, there is no need for a separate module structure --
-   everything is in the component for simplicity.
+   Because only one memory manager component is used in the process,
+   there is no need for a separate module structure -- everything is
+   in the component for simplicity.
 
    Note that there is an interface relevant to this framework that is
    not described in this file: the opal_memory_changed() macro.  This
