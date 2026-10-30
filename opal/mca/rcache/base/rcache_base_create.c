@@ -74,6 +74,12 @@ mca_rcache_base_module_create(const char *name, void *user_data,
                     opal_leave_pinned = !opal_leave_pinned_pipeline;
                 }
                 opal_mem_hooks_register_release(mca_rcache_base_mem_cb, NULL);
+            } else if (OPAL_MEMORY_SUBSCRIBE_SUPPORT & opal_mem_hooks_support_level()) {
+                if (-1 == opal_leave_pinned) {
+                    opal_leave_pinned = !opal_leave_pinned_pipeline;
+                }
+                opal_mem_hooks_register_release(mca_rcache_base_mem_cb,
+                                                &mca_rcache_base_mem_cb_async);
             } else if (1 == opal_leave_pinned || opal_leave_pinned_pipeline) {
                 opal_show_help("help-rcache-base.txt", "leave pinned failed", true, name,
                                OPAL_NAME_PRINT(OPAL_PROC_MY_NAME), opal_process_info.nodename);
@@ -103,7 +109,9 @@ mca_rcache_base_module_create(const char *name, void *user_data,
     sm->rcache_component = component;
     sm->rcache_module = module;
     sm->user_data = user_data;
+    opal_mutex_lock(&mca_rcache_base_modules_lock);
     opal_list_append(&mca_rcache_base_modules, (opal_list_item_t *) sm);
+    opal_mutex_unlock(&mca_rcache_base_modules_lock);
 
     return module;
 }
@@ -111,7 +119,9 @@ mca_rcache_base_module_create(const char *name, void *user_data,
 int mca_rcache_base_module_destroy(mca_rcache_base_module_t *module)
 {
     mca_rcache_base_selected_module_t *sm, *next;
+    int rc = OPAL_ERR_NOT_FOUND;
 
+    opal_mutex_lock(&mca_rcache_base_modules_lock);
     OPAL_LIST_FOREACH_SAFE (sm, next, &mca_rcache_base_modules, mca_rcache_base_selected_module_t) {
         if (module == sm->rcache_module) {
             opal_list_remove_item(&mca_rcache_base_modules, (opal_list_item_t *) sm);
@@ -119,11 +129,13 @@ int mca_rcache_base_module_destroy(mca_rcache_base_module_t *module)
                 sm->rcache_module->rcache_finalize(sm->rcache_module);
             }
             OBJ_RELEASE(sm);
-            return OPAL_SUCCESS;
+            rc = OPAL_SUCCESS;
+            break;
         }
     }
+    opal_mutex_unlock(&mca_rcache_base_modules_lock);
 
-    return OPAL_ERR_NOT_FOUND;
+    return rc;
 }
 
 static void safety_valve(void) __opal_attribute_destructor__;
