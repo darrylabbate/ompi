@@ -15,6 +15,7 @@
  *                         reserved.
  * Copyright (c) 2016      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -115,6 +116,12 @@ typedef int (*opal_memory_base_component_register_fn_t)(void *base, size_t len, 
 typedef int (*opal_memory_base_component_deregister_fn_t)(void *base, size_t len, uint64_t cookie);
 
 /**
+ * Prototype for a function that checks whether a registered region
+ * is unchanged
+ */
+typedef bool (*opal_memory_base_component_valid_fn_t)(void *base, size_t len, uint64_t cookie);
+
+/**
  * Prototype for a function that set the memory alignment
  */
 typedef void (*opal_memory_base_component_set_alignment_fn_t)(int use_memalign,
@@ -154,6 +161,9 @@ typedef struct opal_memory_base_component_2_0_0_t {
     opal_memory_base_component_deregister_fn_t memoryc_deregister;
     /** Function invoked in order to set malloc'ed memory alignment */
     opal_memory_base_component_set_alignment_fn_t memoryc_set_alignment;
+    /** Function invoked to check that a region passed to
+        memoryc_register has not changed since.  May be NULL. */
+    opal_memory_base_component_valid_fn_t memoryc_valid;
 } opal_memory_base_component_2_0_0_t;
 
 OPAL_DECLSPEC extern opal_memory_base_component_2_0_0_t *opal_memory;

@@ -15,6 +15,7 @@
  * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2017      Cisco Systems, Inc.  All rights reserved
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -73,6 +74,7 @@ OBJ_CLASS_INSTANCE(mca_rcache_base_registration_t, opal_free_list_item_t,
  * Global variables
  */
 opal_list_t mca_rcache_base_modules = {{0}};
+opal_mutex_t mca_rcache_base_modules_lock = OPAL_MUTEX_STATIC_INIT;
 
 OBJ_CLASS_INSTANCE(mca_rcache_base_selected_module_t, opal_list_item_t, NULL, NULL);
 
@@ -83,6 +85,7 @@ static int mca_rcache_base_close(void)
 
     /* Finalize all the rcache components and free their list items */
 
+    opal_mutex_lock(&mca_rcache_base_modules_lock);
     while (NULL != (item = opal_list_remove_first(&mca_rcache_base_modules))) {
         sm = (mca_rcache_base_selected_module_t *) item;
 
@@ -96,18 +99,21 @@ static int mca_rcache_base_close(void)
         }
         OBJ_RELEASE(sm);
     }
+    opal_mutex_unlock(&mca_rcache_base_modules_lock);
 
     /* deregister memory free callback */
-    if (mca_rcache_base_used_mem_hooks) {
-        opal_mem_hooks_unregister_release(mca_rcache_base_mem_cb);
-
-        /* close the memory manager components.  Registered hooks can
-           still be fired any time between now and the call to
+    if (1 == mca_rcache_base_used_mem_hooks) {
+        /* close the memory manager components before unregistering, so
+           that a component which delivers events from its own thread
+           has stopped before the callback record is freed.  Registered
+           hooks can still be fired any time between now and the call to
            opal_mem_free_finalize(), and callbacks from the memory manager
            hooks to the bowels of the mem_free code can still occur any
            time between now and end of application (even post main()!) */
         (void) mca_base_framework_close(&opal_memory_base_framework);
+        opal_mem_hooks_unregister_release(mca_rcache_base_mem_cb);
     }
+    mca_rcache_base_used_mem_hooks = 0;
 
     /* All done */
     /* Close all remaining available components */

@@ -18,6 +18,18 @@ above categories that can be used with ``configure``:
                such as InfiniBand, requires the ``dlsym(3)`` interface,
                and therefore does not work with fully-static applications.
 
+* ``--with-kdreg2[=DIR]``:
+  Build the ``kdreg2`` memory component, which uses the kdreg2 kernel
+  module to tell Open MPI's registration cache when memory is freed or
+  remapped.  ``DIR`` is the kdreg2 installation prefix; ``kdreg2.h`` is
+  looked for in ``DIR/include``.  Without ``DIR``, the default include
+  path is searched.  At run time, Open MPI uses ``kdreg2`` when the
+  device can be opened and falls back to ``patcher`` otherwise.
+
+* ``--with-memory-manager=kdreg2``:
+  Require the ``kdreg2`` memory component, and fail ``configure`` if
+  ``kdreg2.h`` cannot be found.
+
 * ``--with-ft=TYPE``:
   Specify the type of fault tolerance to enable.  The only allowed
   values are ``ulfm`` and ``no`` (the default value is ``no``).  See

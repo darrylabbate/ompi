@@ -12,6 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2012-2015 Los Alamos National Security, LLC. All rights
  *                         reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -29,6 +30,7 @@
 
 #include "opal/class/opal_list.h"
 #include "opal/mca/mca.h"
+#include "opal/mca/threads/mutex.h"
 #include "opal/mca/memory/base/base.h"
 #include "opal/mca/rcache/rcache.h"
 
@@ -73,6 +75,7 @@ extern int mca_rcache_base_used_mem_hooks;
  * Globals
  */
 OPAL_DECLSPEC extern opal_list_t mca_rcache_base_modules;
+extern opal_mutex_t mca_rcache_base_modules_lock;
 
 OPAL_DECLSPEC void mca_rcache_base_module_init(mca_rcache_base_module_t *rcache);
 

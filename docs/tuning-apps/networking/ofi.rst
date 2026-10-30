@@ -268,3 +268,24 @@ contain only providers that support the intended buffer type and memory
 registration mode.  Validate the configuration with a representative
 application and consult the installed provider manuals before using GPU
 buffers in production.
+
+Memory registration caches and kdreg2
+-------------------------------------
+
+Open MPI and Libfabric each keep a cache of memory registrations.  Each
+cache needs a memory monitor that tells it when a cached buffer has been
+freed or remapped.
+
+Open MPI picks its monitor through the ``memory`` framework.  When Open MPI
+is built with kdreg2 support (see ``--with-kdreg2``), the ``kdreg2``
+component is tried first and ``patcher`` is used if the kdreg2 device cannot
+be used.  Set the ``memory`` MCA parameter to choose one explicitly; for
+example, ``--mca memory patcher``.  If ``memory`` names only ``kdreg2`` and
+the device cannot be used, Open MPI prints an error instead of falling back.
+
+When ``patcher`` is selected, Open MPI passes its memory hooks to Libfabric
+as an imported monitor.  The ``kdreg2`` component only watches the
+registrations in Open MPI's own cache, so it is not passed to Libfabric.
+Libfabric then uses its own monitor, which is chosen with the
+``FI_MR_CACHE_MONITOR`` environment variable and can also be kdreg2.  The
+two settings are independent.

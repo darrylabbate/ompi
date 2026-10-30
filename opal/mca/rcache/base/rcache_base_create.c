@@ -14,6 +14,7 @@
  *                         reserved.
  * Copyright (c) 2020      Intel, Inc.  All rights reserved.
  * Copyright (c) 2022      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -63,7 +64,8 @@ mca_rcache_base_module_create(const char *name, void *user_data,
                triggered before this (any time after mem_free_init(),
                actually).  This is a hook available for memory manager hooks
                without good initialization routine support */
-            (void) mca_base_framework_open(&opal_memory_base_framework, 0);
+            bool memory_open = OPAL_SUCCESS
+                               == mca_base_framework_open(&opal_memory_base_framework, 0);
 
             if ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT)
                 == ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT)
@@ -72,15 +74,21 @@ mca_rcache_base_module_create(const char *name, void *user_data,
                     opal_leave_pinned = !opal_leave_pinned_pipeline;
                 }
                 opal_mem_hooks_register_release(mca_rcache_base_mem_cb, NULL);
+            } else if (OPAL_MEMORY_SUBSCRIBE_SUPPORT & opal_mem_hooks_support_level()) {
+                if (-1 == opal_leave_pinned) {
+                    opal_leave_pinned = !opal_leave_pinned_pipeline;
+                }
+                opal_mem_hooks_register_release(mca_rcache_base_mem_cb,
+                                                &mca_rcache_base_mem_cb_async);
             } else if (1 == opal_leave_pinned || opal_leave_pinned_pipeline) {
                 opal_show_help("help-rcache-base.txt", "leave pinned failed", true, name,
                                OPAL_NAME_PRINT(OPAL_PROC_MY_NAME), opal_process_info.nodename);
                 return NULL;
             }
 
-            /* Set this to true so that rcache_base_close knows to
-               cleanup */
-            mca_rcache_base_used_mem_hooks = 1;
+            /* Set this to 1 so that rcache_base_close knows to
+               cleanup, or to -1 if the memory framework did not open */
+            mca_rcache_base_used_mem_hooks = memory_open ? 1 : -1;
         }
     }
 
@@ -101,7 +109,9 @@ mca_rcache_base_module_create(const char *name, void *user_data,
     sm->rcache_component = component;
     sm->rcache_module = module;
     sm->user_data = user_data;
+    opal_mutex_lock(&mca_rcache_base_modules_lock);
     opal_list_append(&mca_rcache_base_modules, (opal_list_item_t *) sm);
+    opal_mutex_unlock(&mca_rcache_base_modules_lock);
 
     return module;
 }
@@ -109,7 +119,9 @@ mca_rcache_base_module_create(const char *name, void *user_data,
 int mca_rcache_base_module_destroy(mca_rcache_base_module_t *module)
 {
     mca_rcache_base_selected_module_t *sm, *next;
+    int rc = OPAL_ERR_NOT_FOUND;
 
+    opal_mutex_lock(&mca_rcache_base_modules_lock);
     OPAL_LIST_FOREACH_SAFE (sm, next, &mca_rcache_base_modules, mca_rcache_base_selected_module_t) {
         if (module == sm->rcache_module) {
             opal_list_remove_item(&mca_rcache_base_modules, (opal_list_item_t *) sm);
@@ -117,11 +129,13 @@ int mca_rcache_base_module_destroy(mca_rcache_base_module_t *module)
                 sm->rcache_module->rcache_finalize(sm->rcache_module);
             }
             OBJ_RELEASE(sm);
-            return OPAL_SUCCESS;
+            rc = OPAL_SUCCESS;
+            break;
         }
     }
+    opal_mutex_unlock(&mca_rcache_base_modules_lock);
 
-    return OPAL_ERR_NOT_FOUND;
+    return rc;
 }
 
 static void safety_valve(void) __opal_attribute_destructor__;

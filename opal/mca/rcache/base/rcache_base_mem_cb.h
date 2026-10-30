@@ -12,6 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
  *                         reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -33,6 +34,8 @@ BEGIN_C_DECLS
  *  memory hook callback, called when memory is free'd out from under us
  */
 void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_alloc);
+
+extern int mca_rcache_base_mem_cb_async;
 
 END_C_DECLS
 

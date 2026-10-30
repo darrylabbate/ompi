@@ -14,6 +14,7 @@
  * Copyright (c) 2012-2015 Los Alamos National Security, LLC.
  *                         All rights reserved.
  * Copyright (c) 2020      Intel, Inc.  All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -49,6 +50,8 @@ static char msg[512];
  *  from_alloc==true, then you cannot call malloc (or any of its
  *  friends)!
  */
+int mca_rcache_base_mem_cb_async;
+
 void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_alloc)
 {
     mca_rcache_base_selected_module_t *current;
@@ -57,6 +60,18 @@ void mca_rcache_base_mem_cb(void *base, size_t size, void *cbdata, bool from_all
     /* Only do anything meaningful if the OPAL layer is up and running
        and size != 0 */
     if ((from_alloc && (!opal_initialized)) || size == 0) {
+        return;
+    }
+
+    if (&mca_rcache_base_mem_cb_async == cbdata) {
+        opal_mutex_lock(&mca_rcache_base_modules_lock);
+        OPAL_LIST_FOREACH (current, &mca_rcache_base_modules, mca_rcache_base_selected_module_t) {
+            if (current->rcache_module->rcache_invalidate_range != NULL) {
+                (void) current->rcache_module->rcache_invalidate_range(current->rcache_module,
+                                                                       base, size);
+            }
+        }
+        opal_mutex_unlock(&mca_rcache_base_modules_lock);
         return;
     }
 
