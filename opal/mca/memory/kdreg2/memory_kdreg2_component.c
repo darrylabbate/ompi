@@ -27,8 +27,12 @@
 #include "opal/mca/memory/base/base.h"
 #include "opal/mca/memory/base/empty.h"
 #include "opal/memoryhooks/memory_internal.h"
+#include "opal/mca/base/base.h"
+#include "opal/util/argv.h"
 #include "opal/util/fd.h"
 #include "opal/util/output.h"
+#include "opal/util/proc.h"
+#include "opal/util/show_help.h"
 
 static int kdreg2_open(void);
 static int kdreg2_close(void);
@@ -87,30 +91,73 @@ static int kdreg2_register(void)
     return OPAL_SUCCESS;
 }
 
+static bool kdreg2_requested(void)
+{
+    char **names = NULL;
+    bool include_mode = false, requested = false;
+
+    if (OPAL_SUCCESS
+        != mca_base_component_parse_requested(opal_memory_base_framework.framework_selection,
+                                              &include_mode, &names)) {
+        return false;
+    }
+    for (int i = 0; include_mode && NULL != names && NULL != names[i]; ++i) {
+        if (0 == strcmp(names[i], "kdreg2")) {
+            requested = true;
+            break;
+        }
+    }
+    opal_argv_free(names);
+    return requested;
+}
+
+static void kdreg2_report(const char *operation, int err)
+{
+    static bool reported = false;
+    bool requested = kdreg2_requested();
+    bool missing = 0 == strcmp(operation, "open")
+                   && (ENOENT == err || ENODEV == err || ENXIO == err);
+
+    opal_output_verbose(10, opal_memory_base_framework.framework_output,
+                        "memory:kdreg2: %s failed: %s", operation, strerror(err));
+    if (reported || (missing && !requested)) {
+        return;
+    }
+    reported = true;
+    opal_show_help("help-opal-memory-kdreg2.txt",
+                   requested ? "requested unavailable" : "device error", true,
+                   opal_process_info.nodename, KDREG2_DEVICE_NAME, operation, err,
+                   strerror(err));
+}
+
 static int kdreg2_device_open(int *fd, const struct kdreg2_status_data **status_data)
 {
     struct kdreg2_config_data config_data = {
         .max_regions = (size_t) mca_memory_kdreg2_max_regions,
     };
+    int err;
 
     if (mca_memory_kdreg2_max_regions <= 0) {
+        static bool reported = false;
+        if (!reported) {
+            reported = true;
+            opal_show_help("help-opal-memory-kdreg2.txt", "bad max regions", true,
+                           opal_process_info.nodename, mca_memory_kdreg2_max_regions);
+        }
         return OPAL_ERR_BAD_PARAM;
     }
 
     *fd = open(KDREG2_DEVICE_NAME, O_RDWR | O_CLOEXEC | O_NONBLOCK);
     if (*fd < 0) {
-        opal_output_verbose(10, opal_memory_base_framework.framework_output,
-                            "memory:kdreg2: cannot open %s: %s", KDREG2_DEVICE_NAME,
-                            strerror(errno));
+        kdreg2_report("open", errno);
         return OPAL_ERR_NOT_AVAILABLE;
     }
 
     if (0 != ioctl(*fd, KDREG2_IOCTL_CONFIG_DATA, &config_data)) {
-        opal_output_verbose(10, opal_memory_base_framework.framework_output,
-                            "memory:kdreg2: KDREG2_IOCTL_CONFIG_DATA failed: %s",
-                            strerror(errno));
+        err = errno;
         close(*fd);
         *fd = -1;
+        kdreg2_report("KDREG2_IOCTL_CONFIG_DATA", err);
         return OPAL_ERR_NOT_AVAILABLE;
     }
 
@@ -142,6 +189,8 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
     struct kdreg2_monitoring_params *params;
     int rc = OPAL_SUCCESS;
 
+    bool report = false;
+
     if (c->fd < 0 || 0 == len || getpid() != c->pid) {
         return OPAL_ERR_NOT_AVAILABLE;
     }
@@ -152,7 +201,11 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
     }
 
     pthread_rwlock_wrlock(&c->lock);
-    if (0 != ioctl(c->fd, KDREG2_IOCTL_MONITOR, &arg)) {
+    if (c->failed) {
+        report = !c->failure_reported;
+        c->failure_reported = true;
+        rc = OPAL_ERR_NOT_AVAILABLE;
+    } else if (0 != ioctl(c->fd, KDREG2_IOCTL_MONITOR, &arg)) {
         rc = OPAL_ERROR;
     } else {
         *params = arg.monitoring_params;
@@ -165,6 +218,11 @@ static int kdreg2_monitor(void *base, size_t len, uint64_t cookie)
     }
     pthread_rwlock_unlock(&c->lock);
 
+    if (report) {
+        opal_show_help("help-opal-memory-kdreg2.txt", "event thread stopped", true,
+                       opal_process_info.nodename, c->failed_operation, c->failed_errno,
+                       strerror(c->failed_errno));
+    }
     if (OPAL_SUCCESS != rc) {
         free(params);
     }
@@ -197,7 +255,7 @@ static bool kdreg2_valid(void *base, size_t len, uint64_t cookie)
     bool valid = false;
 
     pthread_rwlock_rdlock(&c->lock);
-    if (NULL != c->status_data && getpid() == c->pid
+    if (NULL != c->status_data && !c->failed && getpid() == c->pid
         && OPAL_SUCCESS == opal_hash_table_get_value_uint64(&c->regions, cookie, (void **) &params)) {
         valid = !kdreg2_mapping_changed(c->status_data, params);
     }
@@ -218,12 +276,12 @@ static int kdreg2_read_events(int fd)
                 continue;
             }
             if (EAGAIN == errno || EWOULDBLOCK == errno) {
-                return OPAL_SUCCESS;
+                return 0;
             }
-            return OPAL_ERROR;
+            return errno;
         }
         if (sizeof(event) != (size_t) bytes) {
-            return OPAL_ERROR;
+            return EIO;
         }
         if (KDREG2_EVENT_MAPPING_CHANGE == event.type) {
             opal_mem_hooks_release_hook((void *) event.u.mapping_change.addr,
@@ -232,24 +290,38 @@ static int kdreg2_read_events(int fd)
     }
 }
 
+static void kdreg2_evictor_failed(const char *operation, int err)
+{
+    opal_memory_kdreg2_component_t *c = &mca_memory_kdreg2_component;
+
+    pthread_rwlock_wrlock(&c->lock);
+    c->failed_operation = operation;
+    c->failed_errno = err;
+    c->failed = true;
+    pthread_rwlock_unlock(&c->lock);
+}
+
 static void *kdreg2_evictor(void *arg)
 {
     struct pollfd fds[2] = {
         {.fd = mca_memory_kdreg2_component.fd, .events = POLLIN},
         {.fd = mca_memory_kdreg2_component.exit_pipe[0], .events = POLLIN},
     };
+    int err;
 
     while (1) {
         if (poll(fds, 2, -1) < 0) {
             if (EINTR == errno) {
                 continue;
             }
+            kdreg2_evictor_failed("poll", errno);
             break;
         }
         if (fds[1].revents) {
             break;
         }
-        if (fds[0].revents && OPAL_SUCCESS != kdreg2_read_events(fds[0].fd)) {
+        if (fds[0].revents && 0 != (err = kdreg2_read_events(fds[0].fd))) {
+            kdreg2_evictor_failed("read", err);
             break;
         }
     }
@@ -310,11 +382,16 @@ static int kdreg2_open(void)
 
     if (0 != pipe(c->exit_pipe) || OPAL_SUCCESS != opal_fd_set_cloexec(c->exit_pipe[0])
         || OPAL_SUCCESS != opal_fd_set_cloexec(c->exit_pipe[1])) {
+        kdreg2_report("pipe", errno);
         kdreg2_cleanup();
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
-    if (0 != pthread_create(&c->thread, NULL, kdreg2_evictor, NULL)) {
+    c->failed = false;
+    c->failure_reported = false;
+    rc = pthread_create(&c->thread, NULL, kdreg2_evictor, NULL);
+    if (0 != rc) {
+        kdreg2_report("pthread_create", rc);
         kdreg2_cleanup();
         return OPAL_ERR_OUT_OF_RESOURCE;
     }

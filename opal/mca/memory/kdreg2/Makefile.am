@@ -9,6 +9,8 @@
 # SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 #
 
+EXTRA_DIST = help-opal-memory-kdreg2.txt
+
 AM_CPPFLAGS = $(memory_kdreg2_CPPFLAGS)
 
 noinst_LTLIBRARIES = libmca_memory_kdreg2.la

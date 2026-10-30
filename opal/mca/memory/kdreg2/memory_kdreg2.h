@@ -37,6 +37,10 @@ typedef struct opal_memory_kdreg2_component_t {
     opal_hash_table_t regions;
     pthread_rwlock_t lock;
     pid_t pid;
+    bool failed;
+    bool failure_reported;
+    const char *failed_operation;
+    int failed_errno;
 } opal_memory_kdreg2_component_t;
 
 extern opal_memory_kdreg2_component_t mca_memory_kdreg2_component;
