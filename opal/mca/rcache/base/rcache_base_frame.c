@@ -15,6 +15,7 @@
  * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2017      Cisco Systems, Inc.  All rights reserved
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -98,7 +99,7 @@ static int mca_rcache_base_close(void)
     }
 
     /* deregister memory free callback */
-    if (mca_rcache_base_used_mem_hooks) {
+    if (1 == mca_rcache_base_used_mem_hooks) {
         opal_mem_hooks_unregister_release(mca_rcache_base_mem_cb);
 
         /* close the memory manager components.  Registered hooks can
@@ -108,6 +109,7 @@ static int mca_rcache_base_close(void)
            time between now and end of application (even post main()!) */
         (void) mca_base_framework_close(&opal_memory_base_framework);
     }
+    mca_rcache_base_used_mem_hooks = 0;
 
     /* All done */
     /* Close all remaining available components */

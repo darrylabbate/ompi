@@ -14,6 +14,7 @@
  *                         reserved.
  * Copyright (c) 2020      Intel, Inc.  All rights reserved.
  * Copyright (c) 2022      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2026      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -63,7 +64,8 @@ mca_rcache_base_module_create(const char *name, void *user_data,
                triggered before this (any time after mem_free_init(),
                actually).  This is a hook available for memory manager hooks
                without good initialization routine support */
-            (void) mca_base_framework_open(&opal_memory_base_framework, 0);
+            bool memory_open = OPAL_SUCCESS
+                               == mca_base_framework_open(&opal_memory_base_framework, 0);
 
             if ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT)
                 == ((OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_MUNMAP_SUPPORT)
@@ -78,9 +80,9 @@ mca_rcache_base_module_create(const char *name, void *user_data,
                 return NULL;
             }
 
-            /* Set this to true so that rcache_base_close knows to
-               cleanup */
-            mca_rcache_base_used_mem_hooks = 1;
+            /* Set this to 1 so that rcache_base_close knows to
+               cleanup, or to -1 if the memory framework did not open */
+            mca_rcache_base_used_mem_hooks = memory_open ? 1 : -1;
         }
     }
 
