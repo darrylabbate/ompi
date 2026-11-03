@@ -1,6 +1,6 @@
 // -*- groovy -*-
 //
-// Copyright (c) 2022-2023 Amazon.com, Inc. or its affiliates.  All rights
+// Copyright (c) 2022-2026 Amazon.com, Inc. or its affiliates.  All rights
 //                         reserved.
 // Copyright (c) 2022-2023 Joe Downs.  All rights reserved.
 // Copyright (c) 2023      Cisco Systems, Inc.  All rights reserved.
@@ -61,7 +61,8 @@ def prepare_check_stages() {
 	"--disable-oshmem",
 	"--enable-builtin-atomic",
 	"--enable-ipv6",
-	"--enable-mca-dso"
+	"--enable-mca-dso",
+	"--with-kdreg2"
     ]
     // explicitly list the newest and oldest versions of GCC that are included
     // in the distros listed below to try and give us good version coverage.
